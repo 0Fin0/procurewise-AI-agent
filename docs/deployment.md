@@ -8,7 +8,7 @@ If the project came from Discord, unzip it first. The team setup guide is:
 TEAM_SETUP_FROM_ZIP.md
 ```
 
-The fastest demo is the no-dependency browser UI.
+The fastest demo is the polished browser dashboard. It does not require extra packages.
 
 Windows:
 
@@ -53,16 +53,18 @@ pip install -r requirements.txt
 python run_demo.py
 ```
 
-Run the web app:
-
-```powershell
-streamlit run app/streamlit_app.py
-```
-
-If Streamlit is not installed, run the no-dependency browser UI:
+Run the polished browser dashboard:
 
 ```powershell
 python app/basic_server.py
+```
+
+Then open `http://127.0.0.1:8502`.
+
+Run the optional Streamlit prototype:
+
+```powershell
+streamlit run app/streamlit_app.py
 ```
 
 Windows launcher:
@@ -72,6 +74,20 @@ Windows launcher:
 ```
 
 Then open `http://127.0.0.1:8502`.
+
+## Docker
+
+Build and run the container:
+
+```powershell
+docker compose up --build
+```
+
+Docker runs the same polished browser dashboard. Open the app at:
+
+```text
+http://localhost:8501
+```
 
 ## Environment Variables
 
@@ -86,20 +102,6 @@ PROCUREWISE_CASE_DIR=data/runtime
 ```
 
 The app runs without an API key in deterministic mode. For a production LLM-backed demo, set `OPENAI_API_KEY` and update the generation layer to call the selected model.
-
-## Docker
-
-Build and run the container:
-
-```powershell
-docker compose up --build
-```
-
-Open the app at:
-
-```text
-http://localhost:8501
-```
 
 ## Infrastructure Design
 

@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import mimetypes
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -7,6 +10,7 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
+STATIC_DIR = ROOT / "app" / "static"
 sys.path.insert(0, str(ROOT / "src"))
 
 from procurewise import ProcureWiseAgent
@@ -24,23 +28,46 @@ SAMPLES = {
         "text": SAMPLE_REQUEST,
     },
     "office": {
-        "label": "Office Supplies",
+        "label": "Office Supply",
         "text": "The office manager wants to purchase $3,200 of printer paper and desk supplies from PaperTrail Office Supply.",
     },
     "finance": {
-        "label": "Northstar Analytics",
+        "label": "Northstar",
         "text": "Finance wants a $155,000 analytics platform from Northstar Analytics that will analyze customer revenue and payment trends.",
     },
     "marketing": {
-        "label": "BrightWave Events",
+        "label": "BrightWave",
         "text": "Marketing wants to hire BrightWave Events for a $18,500 launch event and upload attendee contact lists.",
     },
 }
 
 
+def money(value: object) -> str:
+    if value in (None, "", "None"):
+        return "Not detected"
+    try:
+        return f"${float(value):,.0f}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def tool_details(result, name: str) -> dict:
+    if not result:
+        return {}
+    for tool in result.tool_results:
+        if tool.name == name:
+            return tool.details
+    return {}
+
+
 class ProcureWiseHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
-        query = parse_qs(urlparse(self.path).query)
+        parsed = urlparse(self.path)
+        if parsed.path.startswith("/static/"):
+            self._send_static(parsed.path)
+            return
+
+        query = parse_qs(parsed.query)
         sample_key = query.get("sample", ["cloud"])[0]
         request_text = SAMPLES.get(sample_key, SAMPLES["cloud"])["text"]
         self._send_page(request_text=request_text)
@@ -58,13 +85,41 @@ class ProcureWiseHandler(BaseHTTPRequestHandler):
                 result = ProcureWiseAgent().run(request_text, create_case=create_case)
             except Exception as exc:
                 error = str(exc)
-        self._send_page(request_text=request_text, result=result, error=error)
+        self._send_page(request_text=request_text, result=result, error=error, create_case=create_case)
 
     def log_message(self, format: str, *args: object) -> None:
         return
 
-    def _send_page(self, request_text: str, result=None, error: str | None = None) -> None:
-        html = self._render_page(request_text, result, error)
+    def _send_static(self, request_path: str) -> None:
+        relative = request_path.removeprefix("/static/").lstrip("/")
+        file_path = (STATIC_DIR / relative).resolve()
+        try:
+            file_path.relative_to(STATIC_DIR.resolve())
+        except ValueError:
+            self.send_error(404)
+            return
+
+        if not file_path.is_file():
+            self.send_error(404)
+            return
+
+        content = file_path.read_bytes()
+        content_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(content)))
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        self.wfile.write(content)
+
+    def _send_page(
+        self,
+        request_text: str,
+        result=None,
+        error: str | None = None,
+        create_case: bool = True,
+    ) -> None:
+        html = self._render_page(request_text, result, error, create_case)
         encoded = html.encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -72,95 +127,21 @@ class ProcureWiseHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(encoded)
 
-    def _render_page(self, request_text: str, result=None, error: str | None = None) -> str:
-        sample_buttons = "".join(
-            f'<a class="sample-button" href="/?{urlencode({"sample": key})}">{escape(sample["label"])}</a>'
+    def _sample_buttons(self) -> str:
+        return "".join(
+            f'<a class="scenario-link" href="/?{urlencode({"sample": key})}">{escape(sample["label"])}</a>'
             for key, sample in SAMPLES.items()
         )
-        result_html = ""
-        if error:
-            result_html = f"""
-            <section class="notice error">
-              <strong>Request failed</strong>
-              <p>{escape(error)}</p>
-            </section>
-            """
-        elif result:
-            risk_class = f"risk-{escape(result.risk_level.lower())}"
-            case_value = escape(result.case_id or "Not created")
-            evidence = "".join(
-                f"""
-                <article class="evidence-item">
-                  <div>
-                    <strong>{escape(item.heading)}</strong>
-                    <span>{escape(item.source)}</span>
-                  </div>
-                  <p>{escape(item.text)}</p>
-                </article>
-                """
-                for item in result.policy_evidence
-            )
-            steps = "".join(
-                f"""
-                <li>
-                  <span class="step-index">{index}</span>
-                  <span>{escape(step)}</span>
-                </li>
-                """
-                for index, step in enumerate(result.next_steps, start=1)
-            )
-            tools = "".join(
-                f"<tr><td>{escape(tool.name)}</td><td>{escape(tool.status)}</td>"
-                f"<td><code>{escape(str(tool.details))}</code></td></tr>"
-                for tool in result.tool_results
-            )
-            result_html = f"""
-            <section class="decision-strip">
-              <div>
-                <span class="eyebrow">Risk level</span>
-                <strong class="risk-pill {risk_class}">{escape(result.risk_level.title())}</strong>
-              </div>
-              <div>
-                <span class="eyebrow">Policy evidence</span>
-                <strong>{len(result.policy_evidence)} passages</strong>
-              </div>
-              <div>
-                <span class="eyebrow">Case</span>
-                <strong>{case_value}</strong>
-              </div>
-            </section>
-            <section class="result-grid">
-              <article class="primary-result">
-                <span class="eyebrow">Recommendation</span>
-                <p>{escape(result.recommendation)}</p>
-              </article>
-              <article class="approval-result">
-                <span class="eyebrow">Approval path</span>
-                <p>{escape(result.approval_path)}</p>
-              </article>
-            </section>
-            <section class="content-section">
-              <div class="section-heading">
-                <h2>Next Steps</h2>
-              </div>
-              <ol class="steps">{steps}</ol>
-            </section>
-            <section class="content-section">
-              <div class="section-heading">
-                <h2>Policy Evidence</h2>
-              </div>
-              <div class="evidence-list">{evidence}</div>
-            </section>
-            <section class="content-section">
-              <div class="section-heading">
-                <h2>Tool Trace</h2>
-              </div>
-              <div class="table-wrap">
-                <table><thead><tr><th>Tool</th><th>Status</th><th>Details</th></tr></thead><tbody>{tools}</tbody></table>
-              </div>
-            </section>
-            """
 
+    def _render_page(
+        self,
+        request_text: str,
+        result=None,
+        error: str | None = None,
+        create_case: bool = True,
+    ) -> str:
+        checked = "checked" if create_case else ""
+        result_html = self._result_html(result, error)
         return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -169,85 +150,159 @@ class ProcureWiseHandler(BaseHTTPRequestHandler):
   <title>ProcureWise Agent</title>
   <style>
     :root {{
-      color-scheme: light;
-      --bg: #f5f7fa;
-      --surface: #ffffff;
-      --surface-alt: #f9fafb;
-      --ink: #182132;
-      --muted: #65758b;
-      --line: #dce3ea;
-      --line-strong: #c5ceda;
-      --accent: #116466;
-      --accent-dark: #0b4b4d;
-      --accent-soft: #e4f2f1;
-      --blue: #2454a6;
-      --blue-soft: #e8eefb;
-      --amber: #9a5a00;
-      --amber-soft: #fff4df;
-      --red: #a23a3a;
-      --red-soft: #fff1f1;
-      --green: #177245;
-      --green-soft: #e8f5ee;
-      --panel: #ffffff;
-      --shadow: 0 18px 50px rgba(24, 33, 50, 0.08);
+      color-scheme: dark;
+      --bg: #0d1117;
+      --shell: #0f1b2f;
+      --shell-2: #16243a;
+      --surface: #171d27;
+      --surface-alt: #202735;
+      --ink: #f4f7fb;
+      --muted: #9aa8bb;
+      --line: rgba(148, 163, 184, 0.22);
+      --teal: #20d4bb;
+      --teal-dark: #12b8a5;
+      --teal-soft: rgba(32, 212, 187, 0.15);
+      --blue: #5aa2ff;
+      --blue-soft: rgba(90, 162, 255, 0.15);
+      --amber: #f6c96d;
+      --amber-soft: rgba(246, 201, 109, 0.14);
+      --red: #ff8c8c;
+      --red-soft: rgba(255, 140, 140, 0.14);
+      --green: #35e8a6;
+      --green-soft: rgba(53, 232, 166, 0.14);
+      --shadow: 0 24px 56px rgba(0, 0, 0, 0.34);
     }}
     * {{ box-sizing: border-box; }}
     body {{
       margin: 0;
+      min-height: 100vh;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
       background:
-        linear-gradient(180deg, #eef4f8 0, rgba(238, 244, 248, 0) 340px),
-        var(--bg);
+        radial-gradient(circle at 82% 8%, rgba(32, 212, 187, 0.14), transparent 360px),
+        radial-gradient(circle at 28% 18%, rgba(90, 162, 255, 0.10), transparent 300px),
+        linear-gradient(180deg, #121923 0, var(--bg) 420px);
       color: var(--ink);
     }}
-    main {{
-      max-width: 1180px;
-      margin: 0 auto;
-      padding: 24px 18px 52px;
+    .app-shell {{
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 248px minmax(0, 1fr);
     }}
-    .topbar {{
+    .rail {{
+      background:
+        linear-gradient(180deg, rgba(18, 35, 59, 0.98), rgba(13, 25, 43, 0.98)),
+        var(--shell);
+      color: #d9e4ef;
+      padding: 18px 14px;
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 22px;
+      flex-direction: column;
+      gap: 18px;
+      border-right: 1px solid rgba(148, 163, 184, 0.14);
     }}
     .brand {{
       display: flex;
       align-items: center;
-      gap: 12px;
-      min-width: 0;
+      gap: 11px;
+      padding: 4px 6px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.12);
     }}
-    .brand-mark {{
-      width: 44px;
-      height: 44px;
+    .brand-logo {{
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      object-fit: cover;
+      border: 1px solid rgba(255,255,255,0.26);
+      box-shadow: 0 8px 18px rgba(0,0,0,0.18);
+      background: #ffffff;
+    }}
+    .brand strong {{
+      display: block;
+      color: #ffffff;
+      font-size: 16px;
+      line-height: 1.1;
+    }}
+    .brand span {{
+      color: #9fb0c4;
+      font-size: 12px;
+    }}
+    .nav {{
+      display: grid;
+      gap: 6px;
+    }}
+    .nav-item {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 38px;
+      padding: 8px 10px;
+      border-radius: 7px;
+      color: #d9e4ef;
+      font-weight: 700;
+      font-size: 14px;
+    }}
+    .nav-item.active {{
+      background: linear-gradient(135deg, rgba(32, 212, 187, 0.25), rgba(90, 162, 255, 0.15));
+      color: #ffffff;
+      box-shadow: inset 0 0 0 1px rgba(32, 212, 187, 0.18);
+    }}
+    .nav-icon {{
+      width: 20px;
+      height: 20px;
       display: grid;
       place-items: center;
-      border-radius: 8px;
-      background: var(--accent);
-      color: #ffffff;
-      font-weight: 800;
-      letter-spacing: 0;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.10);
+      font-size: 12px;
+      font-weight: 900;
     }}
-    .brand-copy {{
+    .rail-footer {{
+      margin-top: auto;
+      padding: 12px 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.07);
+    }}
+    .rail-footer span {{
+      display: block;
+      color: #9fb0c4;
+      font-size: 12px;
+      margin-bottom: 4px;
+    }}
+    .rail-footer strong {{
+      display: block;
+      color: #ffffff;
+      font-size: 14px;
+    }}
+    main {{
       min-width: 0;
+      width: 100%;
+      max-width: none;
+      margin: 0;
+      padding: 24px 30px;
+    }}
+    .topbar {{
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 18px;
     }}
     h1 {{
       margin: 0;
       font-size: 30px;
-      line-height: 1.1;
+      line-height: 1.12;
       letter-spacing: 0;
     }}
-    .subtitle {{
-      margin: 3px 0 0;
+    .subhead {{
+      margin: 4px 0 0;
       color: var(--muted);
       font-size: 14px;
     }}
-    h2 {{
-      margin: 0;
-      font-size: 17px;
-      line-height: 1.2;
-      letter-spacing: 0;
+    .status-row {{
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
     }}
     .status-chip {{
       display: inline-flex;
@@ -256,54 +311,122 @@ class ProcureWiseHandler(BaseHTTPRequestHandler):
       min-height: 34px;
       border: 1px solid var(--line);
       border-radius: 999px;
-      padding: 7px 12px;
-      background: rgba(255, 255, 255, 0.74);
+      padding: 7px 11px;
+      background: rgba(23, 29, 39, 0.82);
       color: var(--muted);
       font-size: 13px;
+      font-weight: 700;
       white-space: nowrap;
     }}
-    .status-dot {{
+    .dot {{
       width: 8px;
       height: 8px;
       border-radius: 999px;
       background: var(--green);
     }}
-    .workspace {{
+    .command-strip {{
       display: grid;
-      grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
+      grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(130px, 0.42fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }}
+    .queue-card, .queue-metric {{
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: linear-gradient(145deg, rgba(31, 39, 53, 0.94), rgba(20, 26, 36, 0.94));
+      box-shadow: 0 18px 38px rgba(0, 0, 0, 0.22);
+      padding: 14px 16px;
+    }}
+    .queue-card {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }}
+    .queue-card h2 {{
+      margin: 0;
+      font-size: 17px;
+      letter-spacing: 0;
+    }}
+    .queue-card p {{
+      margin: 4px 0 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }}
+    .queue-pill {{
+      flex: 0 0 auto;
+      border-radius: 999px;
+      background: rgba(32, 212, 187, 0.16);
+      color: #7cf8e8;
+      padding: 7px 10px;
+      font-weight: 900;
+      font-size: 12px;
+      white-space: nowrap;
+    }}
+    .queue-metric span {{
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }}
+    .queue-metric strong {{
+      display: block;
+      font-size: 20px;
+      letter-spacing: 0;
+      color: var(--teal);
+    }}
+    .workbench {{
+      display: grid;
+      grid-template-columns: minmax(420px, 0.74fr) minmax(0, 1.26fr);
       gap: 18px;
       align-items: start;
     }}
-    .request-panel, .side-panel, .content-section, .primary-result, .approval-result, .decision-strip {{
-      background: var(--panel);
+    .intake-column {{
+      display: grid;
+      gap: 14px;
+      position: sticky;
+      top: 24px;
+    }}
+    .panel {{
+      background: var(--surface);
       border: 1px solid var(--line);
       border-radius: 8px;
       box-shadow: var(--shadow);
     }}
-    .request-panel {{
-      padding: 18px;
-      display: grid;
-      gap: 14px;
-    }}
-    .panel-header {{
+    .panel-head {{
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
     }}
-    .field-label {{
-      font-size: 13px;
+    .panel-title {{
+      margin: 0;
+      font-size: 16px;
+      letter-spacing: 0;
+    }}
+    .panel-kicker {{
       color: var(--muted);
-      font-weight: 700;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+    }}
+    form.request-form {{
+      display: grid;
+      gap: 14px;
+      padding: 18px;
     }}
     textarea {{
       width: 100%;
-      min-height: 210px;
+      min-height: 214px;
       resize: vertical;
       border: 1px solid var(--line);
-      border-radius: 6px;
+      border-radius: 7px;
       padding: 14px;
       font: inherit;
       line-height: 1.5;
@@ -312,190 +435,306 @@ class ProcureWiseHandler(BaseHTTPRequestHandler):
       outline: none;
     }}
     textarea:focus {{
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(17, 100, 102, 0.13);
+      border-color: var(--teal);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
     }}
-    .actions {{
+    .form-row {{
       display: flex;
+      align-items: center;
       justify-content: space-between;
       gap: 12px;
-      align-items: center;
-      flex-wrap: wrap;
-    }}
-    .action-left {{
-      display: flex;
-      gap: 12px;
-      align-items: center;
       flex-wrap: wrap;
     }}
     button {{
       border: 0;
-      border-radius: 6px;
-      background: var(--accent);
-      color: white;
+      border-radius: 7px;
+      background: linear-gradient(135deg, var(--teal), var(--blue));
+      color: #ffffff;
       min-height: 42px;
       padding: 11px 16px;
-      font-weight: 700;
+      font-weight: 800;
       cursor: pointer;
-      box-shadow: 0 10px 22px rgba(17, 100, 102, 0.2);
+      box-shadow: 0 12px 28px rgba(32, 212, 187, 0.18);
     }}
-    button:hover {{ background: var(--accent-dark); }}
-    label {{
-      color: var(--muted);
+    button:hover {{ filter: brightness(1.08); }}
+    label.toggle {{
       display: inline-flex;
       align-items: center;
       gap: 8px;
+      color: var(--muted);
       font-size: 14px;
+      font-weight: 700;
     }}
     input[type="checkbox"] {{
       width: 18px;
       height: 18px;
-      accent-color: var(--accent);
+      accent-color: var(--teal);
     }}
-    .sample-row {{
-      display: flex;
+    .scenario-grid {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
-      flex-wrap: wrap;
+      padding-top: 2px;
     }}
-    .sample-button {{
-      display: inline-flex;
+    .scenario-link {{
+      display: flex;
       align-items: center;
-      min-height: 34px;
+      justify-content: space-between;
+      min-height: 36px;
       border: 1px solid var(--line);
-      border-radius: 6px;
+      border-radius: 7px;
       padding: 8px 10px;
       color: var(--ink);
-      background: #ffffff;
+      background: rgba(255,255,255,0.03);
       text-decoration: none;
       font-size: 13px;
-      font-weight: 700;
-    }}
-    .sample-button:hover {{
-      border-color: var(--accent);
-      color: var(--accent-dark);
-    }}
-    .side-panel {{
-      padding: 16px;
-      display: grid;
-      gap: 12px;
-    }}
-    .side-list {{
-      display: grid;
-      gap: 10px;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }}
-    .side-list li {{
-      display: grid;
-      grid-template-columns: 30px 1fr;
-      gap: 10px;
-      align-items: start;
-      margin: 0;
-      padding: 10px;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      background: var(--surface-alt);
-    }}
-    .side-list span {{
-      width: 30px;
-      height: 30px;
-      display: grid;
-      place-items: center;
-      border-radius: 6px;
-      background: var(--blue-soft);
-      color: var(--blue);
       font-weight: 800;
-      font-size: 13px;
     }}
-    .side-list strong {{
+    .scenario-link:hover {{
+      border-color: var(--teal);
+      color: #7cf8e8;
+      background: var(--teal-soft);
+    }}
+    .scenario-link::after {{
+      content: "Load";
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }}
+    .coverage-panel .section-body {{
+      padding-top: 14px;
+    }}
+    .coverage-grid {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }}
+    .coverage-item {{
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--surface-alt);
+      padding: 11px;
+    }}
+    .coverage-item span {{
       display: block;
-      margin-bottom: 2px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }}
+    .coverage-item strong {{
+      display: block;
       font-size: 14px;
     }}
-    .side-list p {{
-      margin: 0;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.35;
-    }}
-    .decision-strip {{
+    .snapshot {{
+      padding: 16px 18px 18px;
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 1px;
-      overflow: hidden;
-      margin-top: 18px;
-      background: var(--line);
+      gap: 10px;
+      border-top: 1px solid var(--line);
     }}
-    .decision-strip > div {{
-      padding: 16px;
-      background: #ffffff;
-      min-width: 0;
+    .snapshot-grid {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
     }}
-    .eyebrow {{
+    .snapshot-item {{
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 11px;
+      background: var(--surface-alt);
+    }}
+    .snapshot-item span {{
       display: block;
       color: var(--muted);
       font-size: 12px;
       font-weight: 800;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }}
+    .snapshot-item strong {{
+      font-size: 16px;
+      overflow-wrap: anywhere;
+    }}
+    .empty-state {{
+      min-height: 540px;
+      padding: 28px;
+      background:
+        radial-gradient(circle at 68% 10%, rgba(32, 212, 187, 0.10), transparent 320px),
+        linear-gradient(145deg, rgba(23, 29, 39, 0.98) 0%, rgba(15, 20, 30, 0.98) 100%);
+    }}
+    .empty-state .seal {{
+      width: 58px;
+      height: 58px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      color: #ffffff;
+      background: var(--teal);
+      font-weight: 900;
+      font-size: 19px;
+    }}
+    .empty-state h2 {{
+      margin: 0;
+      font-size: 23px;
+    }}
+    .empty-state p {{
+      margin: 0;
+      max-width: 520px;
+      color: var(--muted);
+      line-height: 1.55;
+    }}
+    .empty-art {{
+      display: block;
+      width: min(860px, 100%);
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 24px 55px rgba(0, 0, 0, 0.28);
+      margin: 0 auto 22px;
+      opacity: 0.92;
+      filter: saturate(0.88) brightness(0.92);
+    }}
+    .empty-intro {{
+      display: grid;
+      gap: 12px;
+      max-width: 860px;
+      margin-left: auto;
+      margin-right: auto;
+      margin-bottom: 24px;
+    }}
+    .empty-intro .seal {{
+      display: none;
+    }}
+    .empty-flow {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      max-width: 860px;
+      margin-left: auto;
+      margin-right: auto;
+    }}
+    .empty-step {{
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.035);
+      padding: 14px;
+    }}
+    .empty-step span {{
+      display: inline-grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      background: var(--teal-soft);
+      color: #7cf8e8;
+      font-weight: 900;
+      margin-bottom: 10px;
+    }}
+    .empty-step strong {{
+      display: block;
+      margin-bottom: 4px;
+      font-size: 15px;
+    }}
+    .empty-step p {{
+      font-size: 13px;
+      line-height: 1.45;
+    }}
+    .result-stack {{
+      display: grid;
+      gap: 14px;
+    }}
+    .decision-grid {{
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      padding: 14px;
+    }}
+    .metric {{
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 12px;
+      background: var(--surface-alt);
+      min-width: 0;
+    }}
+    .metric span {{
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
       text-transform: uppercase;
       margin-bottom: 6px;
     }}
-    .decision-strip strong {{
+    .metric strong {{
       display: block;
-      font-size: 20px;
+      font-size: 19px;
       overflow-wrap: anywhere;
+    }}
+    .case-value {{
+      display: flex !important;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }}
+    .case-success {{
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-size: 12px;
+      font-style: normal;
+      font-weight: 900;
     }}
     .risk-pill {{
       width: fit-content;
       border-radius: 999px;
       padding: 6px 10px;
-      font-size: 16px !important;
+      font-size: 15px !important;
     }}
     .risk-low {{ color: var(--green); background: var(--green-soft); }}
     .risk-medium {{ color: var(--amber); background: var(--amber-soft); }}
     .risk-high {{ color: var(--red); background: var(--red-soft); }}
-    .result-grid {{
-      display: grid;
-      grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.75fr);
-      gap: 14px;
-      margin-top: 14px;
-    }}
-    .primary-result, .approval-result, .content-section {{
+    .recommendation {{
       padding: 18px;
     }}
-    .primary-result p, .approval-result p {{
+    .recommendation p {{
       margin: 0;
-      line-height: 1.6;
       font-size: 16px;
+      line-height: 1.62;
     }}
-    .approval-result {{
-      background: var(--blue-soft);
-      border-color: #c8d5ef;
-    }}
-    .content-section {{
+    .approval-band {{
       margin-top: 14px;
+      border: 1px solid rgba(90, 162, 255, 0.32);
+      border-radius: 7px;
+      background: var(--blue-soft);
+      padding: 13px;
+      color: #b8d5ff;
+      font-weight: 800;
     }}
-    .section-heading {{
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 12px;
+    .section-body {{
+      padding: 16px 18px 18px;
     }}
     .steps {{
       display: grid;
       gap: 10px;
-      list-style: none;
       padding: 0;
       margin: 0;
+      list-style: none;
     }}
     .steps li {{
       display: grid;
       grid-template-columns: 32px 1fr;
       gap: 10px;
-      align-items: start;
-      margin: 0;
       line-height: 1.45;
     }}
     .step-index {{
@@ -504,9 +743,9 @@ class ProcureWiseHandler(BaseHTTPRequestHandler):
       display: grid;
       place-items: center;
       border-radius: 999px;
-      color: var(--accent-dark);
-      background: var(--accent-soft);
-      font-weight: 800;
+      color: #7cf8e8;
+      background: var(--teal-soft);
+      font-weight: 900;
     }}
     .evidence-list {{
       display: grid;
@@ -514,11 +753,11 @@ class ProcureWiseHandler(BaseHTTPRequestHandler):
     }}
     .evidence-item {{
       border: 1px solid var(--line);
-      border-radius: 6px;
+      border-radius: 7px;
       padding: 12px;
       background: var(--surface-alt);
     }}
-    .evidence-item div {{
+    .evidence-item header {{
       display: flex;
       justify-content: space-between;
       gap: 10px;
@@ -531,46 +770,62 @@ class ProcureWiseHandler(BaseHTTPRequestHandler):
     .evidence-item span {{
       color: var(--muted);
       font-size: 13px;
+      font-weight: 700;
     }}
     .evidence-item p {{
       margin: 0;
-      color: #2d394c;
+      color: #d9e2ee;
       line-height: 1.5;
-    }}
-    .notice {{
-      margin-top: 18px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 16px;
-      background: #ffffff;
-    }}
-    .error {{
-      border-color: #f0b7b7;
-      background: var(--red-soft);
-      color: var(--red);
     }}
     .table-wrap {{
       width: 100%;
       overflow-x: auto;
       border: 1px solid var(--line);
-      border-radius: 6px;
+      border-radius: 7px;
+    }}
+    .trace-panel {{
+      overflow: hidden;
+    }}
+    .trace-panel summary {{
+      cursor: pointer;
+      list-style: none;
+    }}
+    .trace-panel summary::-webkit-details-marker {{
+      display: none;
+    }}
+    .trace-toggle {{
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 7px 10px;
+      color: #7cf8e8;
+      background: var(--teal-soft);
+      font-size: 12px;
+      font-weight: 900;
+    }}
+    .trace-toggle::after {{
+      content: "Show audit log";
+    }}
+    .trace-panel[open] .trace-toggle::after {{
+      content: "Hide audit log";
     }}
     table {{
       width: 100%;
       border-collapse: collapse;
-      font-size: 14px;
-      background: #ffffff;
+      background: var(--surface);
+      font-size: 13px;
     }}
     th {{
       background: var(--surface-alt);
       color: var(--muted);
-      font-size: 12px;
+      font-size: 11px;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.05em;
     }}
     th, td {{
       border-top: 1px solid var(--line);
-      padding: 10px;
+      padding: 9px;
       text-align: left;
       vertical-align: top;
     }}
@@ -578,66 +833,267 @@ class ProcureWiseHandler(BaseHTTPRequestHandler):
     code {{
       white-space: pre-wrap;
       overflow-wrap: anywhere;
-      color: #314055;
+      color: #d9e2ee;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
     }}
-    @media (max-width: 900px) {{
-      .workspace, .result-grid {{ grid-template-columns: 1fr; }}
-      .side-panel {{ order: -1; }}
+    .notice {{
+      padding: 16px;
+      border: 1px solid #f0b7b7;
+      border-radius: 8px;
+      background: var(--red-soft);
+      color: var(--red);
+      font-weight: 800;
+    }}
+    .app-footer {{
+      margin-top: 24px;
+      padding: 12px 2px 4px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: right;
+    }}
+    @media (max-width: 1120px) {{
+      .app-shell {{ grid-template-columns: 1fr; }}
+      .rail {{
+        position: static;
+        display: block;
+      }}
+      .brand {{ border-bottom: 0; }}
+      .nav, .rail-footer {{ display: none; }}
+      main {{ padding: 18px; }}
+      .workbench {{ grid-template-columns: 1fr; }}
+      .intake-column {{ position: static; }}
     }}
     @media (max-width: 760px) {{
-      main {{ padding: 18px 12px 36px; }}
+      main {{ padding: 12px; }}
       .topbar {{ align-items: flex-start; flex-direction: column; }}
-      .decision-strip {{ grid-template-columns: 1fr; }}
-      h1 {{ font-size: 27px; }}
+      .status-row {{ justify-content: flex-start; }}
+      .command-strip {{ grid-template-columns: 1fr; }}
+      .queue-card {{ align-items: flex-start; flex-direction: column; }}
+      .decision-grid, .snapshot-grid, .scenario-grid, .coverage-grid, .empty-flow {{ grid-template-columns: 1fr; }}
+      h1 {{ font-size: 26px; }}
       textarea {{ min-height: 180px; }}
     }}
   </style>
 </head>
 <body>
-  <main>
-    <header class="topbar">
+  <div class="app-shell">
+    <aside class="rail">
       <div class="brand">
-        <div class="brand-mark">PW</div>
-        <div class="brand-copy">
-          <h1>ProcureWise</h1>
-          <p class="subtitle">Procurement Risk Triage</p>
+        <img class="brand-logo" src="/static/procurewise-logo.jpg" alt="ProcureWise logo">
+        <div>
+          <strong>ProcureWise</strong>
+          <span>Risk Triage</span>
         </div>
       </div>
-      <div class="status-chip"><span class="status-dot"></span> Local agent ready</div>
-    </header>
-    <section class="workspace">
-      <form class="request-panel" method="post">
-        <div class="panel-header">
-          <label class="field-label" for="request_text">Purchase Request</label>
+      <nav class="nav" aria-label="Workspace">
+        <div class="nav-item active"><span class="nav-icon">R</span>Review</div>
+        <div class="nav-item"><span class="nav-icon">V</span>Vendors</div>
+        <div class="nav-item"><span class="nav-icon">P</span>Policy</div>
+        <div class="nav-item"><span class="nav-icon">C</span>Cases</div>
+      </nav>
+      <div class="rail-footer">
+        <span>Mode</span>
+        <strong>RAG + tool workflow</strong>
+      </div>
+    </aside>
+    <main>
+      <header class="topbar">
+        <div>
+          <h1>Procurement Review Workbench</h1>
+          <p class="subhead">Track A AI Agent | ISYS 573</p>
         </div>
-        <textarea id="request_text" name="request_text" aria-label="Purchase request">{escape(request_text)}</textarea>
-        <div class="actions">
-          <div class="action-left">
-            <button type="submit">Analyze request</button>
-            <label><input type="checkbox" name="create_case" checked> Create case file</label>
+        <div class="status-row">
+          <div class="status-chip"><span class="dot"></span>Agent ready</div>
+          <div class="status-chip">Docker tested</div>
+        </div>
+      </header>
+      <section class="command-strip" aria-label="Review status">
+        <div class="queue-card">
+          <div>
+            <h2>Active purchase review</h2>
+            <p>Policy sources, vendor records, approval rules, and case output are connected for the demo.</p>
           </div>
+          <span class="queue-pill">Demo ready</span>
         </div>
-      </form>
-      <aside class="side-panel">
-        <h2>Scenario Library</h2>
-        <div class="sample-row">{sample_buttons}</div>
-        <ul class="side-list">
-          <li><span>01</span><div><strong>Policy Match</strong><p>Procurement, approval, security</p></div></li>
-          <li><span>02</span><div><strong>Vendor Status</strong><p>Profile, contract, assurance</p></div></li>
-          <li><span>03</span><div><strong>Review Path</strong><p>Risk, approvals, case record</p></div></li>
-        </ul>
-      </aside>
-    </section>
-    {result_html}
-  </main>
+        <div class="queue-metric"><span>Policy sources</span><strong>4</strong></div>
+        <div class="queue-metric"><span>Vendor records</span><strong>5</strong></div>
+        <div class="queue-metric"><span>Case writer</span><strong>On</strong></div>
+      </section>
+      <section class="workbench">
+        <div class="intake-column">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-kicker">Intake</span>
+                <h2 class="panel-title">Purchase Request</h2>
+              </div>
+            </div>
+            <form class="request-form" method="post">
+              <textarea id="request_text" name="request_text" aria-label="Purchase request">{escape(request_text)}</textarea>
+              <div class="scenario-grid">{self._sample_buttons()}</div>
+              <div class="form-row">
+                <button type="submit">Analyze request</button>
+                <label class="toggle"><input type="checkbox" name="create_case" {checked}> Create case file</label>
+              </div>
+            </form>
+          </div>
+          <section class="panel coverage-panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-kicker">Package</span>
+                <h2 class="panel-title">Review Coverage</h2>
+              </div>
+            </div>
+            <div class="section-body">
+              <div class="coverage-grid">
+                <div class="coverage-item"><span>Evidence</span><strong>Policy matches</strong></div>
+                <div class="coverage-item"><span>Vendor</span><strong>Risk profile</strong></div>
+                <div class="coverage-item"><span>Approval</span><strong>Routing path</strong></div>
+                <div class="coverage-item"><span>Audit</span><strong>Tool trace</strong></div>
+              </div>
+            </div>
+          </section>
+        </div>
+        {result_html}
+      </section>
+      <footer class="app-footer">ProcureWise Agent | ISYS 573 Group Project</footer>
+    </main>
+  </div>
 </body>
 </html>"""
+
+    def _result_html(self, result, error: str | None) -> str:
+        if error:
+            return f'<section class="panel"><div class="section-body"><div class="notice">{escape(error)}</div></div></section>'
+
+        if not result:
+            return """
+            <section class="panel empty-state">
+              <img class="empty-art" src="/static/procurewise-empty-state.jpg" alt="Procurement review workflow illustration">
+              <div class="empty-intro">
+                <div class="seal">PW</div>
+                <h2>Review queue is ready</h2>
+                <p>The agent is staged to read the request, retrieve policy evidence, check vendor risk, route approval, and create a case record.</p>
+              </div>
+              <div class="empty-flow">
+                <article class="empty-step"><span>1</span><strong>Parse Request</strong><p>Finds vendor, amount, team, category, and data sensitivity.</p></article>
+                <article class="empty-step"><span>2</span><strong>Retrieve Evidence</strong><p>Matches the request against procurement, security, and approval policy.</p></article>
+                <article class="empty-step"><span>3</span><strong>Run Tools</strong><p>Checks vendor profile, approval path, risk score, and case output.</p></article>
+                <article class="empty-step"><span>4</span><strong>Draft Decision</strong><p>Returns a recommendation, next steps, policy matches, and audit trace.</p></article>
+              </div>
+            </section>
+            """
+
+        facts = tool_details(result, "request_parser")
+        vendor = tool_details(result, "vendor_lookup")
+        risk = tool_details(result, "risk_scorer")
+        risk_class = f"risk-{escape(result.risk_level.lower())}"
+        vendor_label = vendor.get("name") or facts.get("vendor") or "Not found"
+        vendor_risk = vendor.get("risk_rating") or "Needs review"
+        data_flag = "Yes" if facts.get("handles_sensitive_data") else "No"
+        risk_score = risk.get("score", "-")
+        case_value = escape(result.case_id or "Not created")
+        case_badge = '<em class="case-success">Created</em>' if result.case_id else ""
+
+        steps = "".join(
+            f'<li><span class="step-index">{index}</span><span>{escape(step)}</span></li>'
+            for index, step in enumerate(result.next_steps, start=1)
+        )
+        evidence = "".join(
+            f"""
+            <article class="evidence-item">
+              <header>
+                <strong>{escape(item.heading)}</strong>
+                <span>{escape(item.source)}</span>
+              </header>
+              <p>{escape(item.text)}</p>
+            </article>
+            """
+            for item in result.policy_evidence
+        )
+        tools = "".join(
+            f"<tr><td>{escape(tool.name)}</td><td>{escape(tool.status)}</td><td><code>{escape(str(tool.details))}</code></td></tr>"
+            for tool in result.tool_results
+        )
+
+        return f"""
+        <div class="result-stack">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-kicker">Decision</span>
+                <h2 class="panel-title">Review Summary</h2>
+              </div>
+            </div>
+            <div class="decision-grid">
+              <div class="metric"><span>Risk</span><strong class="risk-pill {risk_class}">{escape(result.risk_level.title())}</strong></div>
+              <div class="metric"><span>Score</span><strong>{escape(str(risk_score))}</strong></div>
+              <div class="metric"><span>Evidence</span><strong>{len(result.policy_evidence)} passages</strong></div>
+              <div class="metric"><span>Case</span><strong class="case-value">{case_value}{case_badge}</strong></div>
+            </div>
+            <div class="recommendation">
+              <p>{escape(result.recommendation)}</p>
+              <div class="approval-band">{escape(result.approval_path)}</div>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-kicker">Facts</span>
+                <h2 class="panel-title">Request Snapshot</h2>
+              </div>
+            </div>
+            <div class="snapshot">
+              <div class="snapshot-grid">
+                <div class="snapshot-item"><span>Vendor</span><strong>{escape(str(vendor_label))}</strong></div>
+                <div class="snapshot-item"><span>Vendor risk</span><strong>{escape(str(vendor_risk))}</strong></div>
+                <div class="snapshot-item"><span>Amount</span><strong>{escape(money(facts.get("amount")))}</strong></div>
+                <div class="snapshot-item"><span>Sensitive data</span><strong>{data_flag}</strong></div>
+              </div>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-kicker">Action</span>
+                <h2 class="panel-title">Next Steps</h2>
+              </div>
+            </div>
+            <div class="section-body"><ol class="steps">{steps}</ol></div>
+          </section>
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-kicker">Evidence</span>
+                <h2 class="panel-title">Policy Matches</h2>
+              </div>
+            </div>
+            <div class="section-body"><div class="evidence-list">{evidence}</div></div>
+          </section>
+          <details class="panel trace-panel">
+            <summary class="panel-head">
+              <div>
+                <span class="panel-kicker">Audit</span>
+                <h2 class="panel-title">Tool Trace</h2>
+              </div>
+              <span class="trace-toggle"></span>
+            </summary>
+            <div class="section-body">
+              <div class="table-wrap">
+                <table><thead><tr><th>Tool</th><th>Status</th><th>Details</th></tr></thead><tbody>{tools}</tbody></table>
+              </div>
+            </div>
+          </details>
+        </div>
+        """
 
 
 def main() -> None:
     port = int(os.getenv("PORT", "8502"))
-    server = ThreadingHTTPServer(("127.0.0.1", port), ProcureWiseHandler)
-    print(f"ProcureWise basic UI running at http://127.0.0.1:{port}")
+    host = os.getenv("HOST", "127.0.0.1")
+    server = ThreadingHTTPServer((host, port), ProcureWiseHandler)
+    print(f"ProcureWise UI running at http://{host}:{port}")
     server.serve_forever()
 
 

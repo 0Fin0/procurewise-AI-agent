@@ -6,5 +6,7 @@ services:
     environment:
       PROCUREWISE_USE_LLM: "false"
       PROCUREWISE_CASE_DIR: data/runtime
+      HOST: 0.0.0.0
+      PORT: "8501"
     volumes:
       - ./data/runtime:/app/data/runtime

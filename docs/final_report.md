@@ -221,6 +221,10 @@ The project includes:
 
 The container runs the Streamlit app on port 8501.
 
+### Docker Test Result
+
+Docker deployment was tested successfully on Windows using Docker Desktop. The containerized Streamlit app ran at `http://localhost:8501` and completed the CloudDesk AI sample request. The test produced a medium-risk recommendation with approval routing, policy evidence, next steps, case creation, and a visible tool trace. After testing, the container and Docker network were stopped and removed with `docker compose down`.
+
 ### Deployment Instructions
 
 Local run:

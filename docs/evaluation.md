@@ -42,6 +42,10 @@ If `pytest` is not installed yet, run the dependency-light smoke checks:
 python run_checks.py
 ```
 
+## Docker Deployment Test
+
+Docker deployment was tested successfully on Windows using Docker Desktop. The containerized Streamlit app ran at `http://localhost:8501` and completed the CloudDesk AI sample request. The output included medium-risk classification, approval routing, policy evidence, next steps, case creation, and the tool trace. The container was then stopped cleanly with `docker compose down`.
+
 ## Evaluation Findings
 
 The prototype meets the course goal of demonstrating a meaningful AI agent because it performs a multi-step business task rather than a single chat response. It retrieves domain policy, calls tools, produces a recommendation, and preserves an audit trail.

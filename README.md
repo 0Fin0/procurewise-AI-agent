@@ -14,7 +14,7 @@ The project is designed to satisfy the final package requirements:
 - Single AI agent architecture with a reasoning workflow
 - Retrieval Augmented Generation over a domain knowledge base
 - Tool/API style actions for vendor lookup, approval routing, risk scoring, and case creation
-- Simple user interface
+- Polished browser dashboard for reviewing purchase requests
 - Docker deployment package
 - Evaluation, ethics, security, and final report documentation
 
@@ -88,19 +88,19 @@ To run a dependency-light verification:
 python run_checks.py
 ```
 
-To run the web interface:
-
-```powershell
-streamlit run app/streamlit_app.py
-```
-
-If Streamlit is not installed yet, use the no-dependency browser UI:
+To run the polished browser dashboard:
 
 ```powershell
 python app/basic_server.py
 ```
 
 Then open `http://127.0.0.1:8502`.
+
+To run the optional Streamlit prototype:
+
+```powershell
+streamlit run app/streamlit_app.py
+```
 
 On Windows, you can also run:
 
@@ -110,12 +110,20 @@ On Windows, you can also run:
 
 Or double-click `start_local_app.bat`. Keep the terminal window open while using the app.
 
+To run the Docker version of the polished dashboard:
+
+```powershell
+docker compose up --build
+```
+
+Then open `http://localhost:8501`.
+
 The core demo works without an API key. Docker also runs without a `.env` file. To use an LLM-backed implementation later, copy `.env.example` to `.env`, add your API key, and install the optional packages listed in `requirements.txt`.
 
 ## Repository Structure
 
 ```text
-app/                         Streamlit user interface
+app/                         Polished browser dashboard and optional Streamlit prototype
 data/knowledge_base/         RAG source documents
 data/vendors.csv             Sample vendor risk database
 data/sample_requests.csv     Evaluation and demo scenarios
@@ -138,7 +146,9 @@ The agent will retrieve relevant policy, check CloudDesk AI in the vendor databa
 
 ## Deliverables
 
-- Final report: `docs/final_report.md`
+- Final report Word document: `docs/ProcureWise_Final_Report.docx`
+- Final report simplified source: `docs/final_report_grade9.md`
+- Original detailed report draft: `docs/final_report.md`
 - Architecture: `docs/architecture.md`
 - Evaluation plan and results: `docs/evaluation.md`
 - Ethics and security analysis: `docs/ethics_security.md`
