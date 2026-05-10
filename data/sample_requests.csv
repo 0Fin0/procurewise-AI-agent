@@ -1,0 +1,6 @@
+id,request,expected_risk,expected_action
+1,"We need to buy a $42,000 annual subscription from CloudDesk AI for the Customer Success team. It will process customer emails and support tickets. Can we approve it this week?",medium,"Route to VP, Procurement, and Security review; attach DPA."
+2,"The office manager wants to purchase $3,200 of printer paper and desk supplies from PaperTrail Office Supply.",low,"Route to requester manager approval."
+3,"Finance wants a $155,000 analytics platform from Northstar Analytics that will analyze customer revenue and payment trends.",high,"Escalate to CFO, Legal, Security, and Procurement Director before commitment."
+4,"Marketing wants to hire BrightWave Events for a $18,500 launch event and upload attendee contact lists.",medium,"Require manager, Procurement, and data review before sharing contacts."
+

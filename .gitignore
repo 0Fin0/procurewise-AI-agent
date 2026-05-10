@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+data/runtime/*
+*.zip
+AI Agent Group Project.pdf
+dist/
+build/

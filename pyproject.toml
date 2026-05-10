@@ -1,0 +1,10 @@
+[project]
+name = "procurewise-agent"
+version = "0.1.0"
+description = "ISYS 573 Track A AI Agent project for procurement and vendor risk triage"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+

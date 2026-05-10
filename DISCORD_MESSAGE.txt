@@ -1,0 +1,49 @@
+Hey team, I zipped the ProcureWise project so everyone can download and test it.
+
+What this is:
+ProcureWise is our ISYS 573 Track A AI Agent project. It helps review purchase requests for procurement and vendor risk. A user enters a request, and the agent checks policy, vendor data, approval rules, and risk level.
+
+What it does:
+1. Reads the purchase request.
+2. Finds key details like vendor, amount, department, and data sensitivity.
+3. Searches our policy documents using RAG.
+4. Checks sample vendor risk data.
+5. Decides the approval path.
+6. Scores the request as low, medium, or high risk.
+7. Gives a recommendation, evidence, and next steps.
+
+How it meets the project requirements:
+- Track A AI Agent is clearly stated.
+- Real business use case: procurement and vendor risk review.
+- RAG knowledge base is included.
+- Tools are included: vendor lookup, approval routing, risk scoring, and case creation.
+- Local web UI is included.
+- Docker files are included.
+- Evaluation, ethics/security, deployment, architecture, final report, and demo script are included.
+
+How to run it:
+1. Download the ZIP from Discord.
+2. Unzip it.
+3. Read TEAM_SETUP_FROM_ZIP.md.
+
+Windows:
+Double-click start_local_app.bat.
+Then open http://127.0.0.1:8502.
+
+macOS:
+Open Terminal in the project folder and run:
+python3 app/basic_server.py
+Or run:
+sh start_local_app.command
+Then open http://127.0.0.1:8502.
+
+Important:
+Keep the terminal/window open while using the app. If it closes, the browser page will stop working.
+
+Still needed before final submission:
+1. Add our names and roles to the report.
+2. Review and polish docs/final_report.md.
+3. Convert the report to PDF or Word.
+4. Record the 5-minute demo using docs/demo_script.md.
+5. Upload the project to GitHub.
+6. Test on Windows and macOS.

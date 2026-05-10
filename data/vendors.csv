@@ -1,0 +1,6 @@
+vendor_id,name,risk_rating,security_review_date,soc2,insurance_status,active_contract,data_sensitivity_allowed,notes
+V-1001,CloudDesk AI,Medium,2026-02-14,Yes,Active,Yes,Customer Support Data,Approved for support workflows if DPA is attached
+V-1002,Northstar Analytics,High,2024-10-09,No,Expired,No,Aggregated Business Data,Requires full security reassessment before renewal
+V-1003,PaperTrail Office Supply,Low,2025-12-18,Not Applicable,Active,Yes,None,Preferred vendor for office supplies
+V-1004,SecureSign Contracts,Low,2026-01-22,Yes,Active,Yes,Confidential Contract Data,Approved contract lifecycle platform
+V-1005,BrightWave Events,Medium,2025-06-30,No,Active,Yes,Marketing Contact Data,Marketing vendor with limited data approval

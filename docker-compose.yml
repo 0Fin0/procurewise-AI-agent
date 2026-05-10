@@ -1,0 +1,10 @@
+services:
+  procurewise:
+    build: .
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    volumes:
+      - ./data/runtime:/app/data/runtime
+
