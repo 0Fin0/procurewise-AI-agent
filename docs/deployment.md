@@ -75,7 +75,9 @@ Then open `http://127.0.0.1:8502`.
 
 ## Environment Variables
 
-Copy `.env.example` to `.env`.
+The default local demo does not require a `.env` file. Docker Compose sets safe default values automatically.
+
+If you want to test an API-backed LLM version later, copy `.env.example` to `.env`.
 
 ```text
 OPENAI_API_KEY=

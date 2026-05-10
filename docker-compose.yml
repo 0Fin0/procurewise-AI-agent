@@ -3,8 +3,8 @@ services:
     build: .
     ports:
       - "8501:8501"
-    env_file:
-      - .env
+    environment:
+      PROCUREWISE_USE_LLM: "false"
+      PROCUREWISE_CASE_DIR: data/runtime
     volumes:
       - ./data/runtime:/app/data/runtime
-

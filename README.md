@@ -110,7 +110,7 @@ On Windows, you can also run:
 
 Or double-click `start_local_app.bat`. Keep the terminal window open while using the app.
 
-The core demo works without an API key. To use an LLM-backed implementation, copy `.env.example` to `.env`, add your API key, and install the optional packages listed in `requirements.txt`.
+The core demo works without an API key. Docker also runs without a `.env` file. To use an LLM-backed implementation later, copy `.env.example` to `.env`, add your API key, and install the optional packages listed in `requirements.txt`.
 
 ## Repository Structure
 
