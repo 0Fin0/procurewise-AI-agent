@@ -8,6 +8,12 @@ Project title: ProcureWise AI Agent
 
 Track: Track A - AI Agent Project
 
+Team members:
+
+- Jesus Arteaga - Research, business use case support, testing, and presentation support
+- Omar Ferrufino - Agent engineering, UI implementation, GitHub packaging, and documentation coordination
+- Marie Trejo Sandoval - Ethics/security analysis, evaluation support, and report review
+
 Final submission due: May 12, 2026
 
 ## Executive Summary
@@ -318,6 +324,12 @@ The repository includes:
 
 This makes the project ready to be uploaded to GitHub and submitted with the final report and video demo.
 
+## 7. Team Contributions
+
+The team worked collaboratively across the project deliverables. Omar Ferrufino coordinated the technical build, including the agent workflow, local user interface, GitHub repository setup, and documentation packaging. Jesus Arteaga supported the business use case, stakeholder framing, testing scenarios, and presentation planning. Marie Trejo Sandoval supported the ethics and security analysis, evaluation review, and final report refinement.
+
+All team members are expected to review the final demo, verify the app runs locally, and contribute to the final presentation video before submission.
+
 ## Conclusion
 
 ProcureWise demonstrates a practical AI agent for a real business workflow. It combines a focused use case, RAG over policy documents, tool-based actions, graph-style orchestration, a usable interface, deployment assets, evaluation, and ethical safeguards. The project shows how agentic techniques can improve business operations while keeping human accountability in place.
@@ -334,4 +346,3 @@ ProcureWise demonstrates a practical AI agent for a real business workflow. It c
 - [NIST AI Risk Management Framework](https://www.nist.gov/itl/ai-risk-management-framework)
 - [NIST AI RMF 1.0 publication](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-ai-rmf-10)
 - [OWASP Top 10 for Large Language Model Applications](https://owasp.org/www-project-top-10-for-large-language-model-applications)
-

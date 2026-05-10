@@ -2,6 +2,12 @@
 
 ProcureWise is a Track A AI Agent project for ISYS 573. It helps procurement, finance, and IT teams triage purchase requests by retrieving policy evidence, checking vendor risk data, identifying approval requirements, and drafting a clear recommendation.
 
+Team members:
+
+- Jesus Arteaga
+- Omar Ferrufino
+- Marie Trejo Sandoval
+
 The project is designed to satisfy the final package requirements:
 
 - Business use case and stakeholder value

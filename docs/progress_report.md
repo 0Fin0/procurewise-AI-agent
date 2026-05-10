@@ -1,5 +1,11 @@
 # Progress Report
 
+## Team Members
+
+- Jesus Arteaga
+- Omar Ferrufino
+- Marie Trejo Sandoval
+
 ## Current Status
 
 The ProcureWise prototype has an initial end-to-end implementation. A user can submit a purchase request, and the agent parses request facts, retrieves policy evidence, checks vendor data, routes approvals, scores risk, and returns next steps.
@@ -45,4 +51,3 @@ The main ethical risks are overreliance, unfair vendor treatment, sensitive data
 - Finalize Docker instructions
 - Prepare five-minute video demo script
 - Polish README and repository structure
-

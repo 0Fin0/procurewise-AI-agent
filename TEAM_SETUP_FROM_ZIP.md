@@ -6,6 +6,12 @@ Use this guide after downloading the project ZIP from Discord.
 
 This ZIP contains our ISYS 573 AI Agent project, ProcureWise. It is a Track A single AI Agent that reviews purchase requests for procurement and vendor risk.
 
+Team members:
+
+- Jesus Arteaga
+- Omar Ferrufino
+- Marie Trejo Sandoval
+
 The agent can:
 
 - Read a purchase request.

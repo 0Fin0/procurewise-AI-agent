@@ -4,6 +4,12 @@
 
 ProcureWise AI Agent: Procurement and Vendor Risk Triage Assistant
 
+## Team Members
+
+- Jesus Arteaga
+- Omar Ferrufino
+- Marie Trejo Sandoval
+
 ## Track Selection
 
 Track A: AI Agent Project
@@ -62,8 +68,6 @@ ProcureWise helps requesters and procurement analysts by reading a purchase requ
 
 ## Team Roles
 
-- Product and business case lead: define stakeholder value and success metrics
-- Agent engineering lead: implement workflow, RAG, tools, and UI
-- Evaluation and ethics lead: test scenarios, risk analysis, and limitations
-- Deployment and documentation lead: Docker, README, final report, and demo script
-
+- Jesus Arteaga: business use case support, stakeholder needs, testing scenarios, and presentation support
+- Omar Ferrufino: agent engineering, RAG/tools implementation, UI, GitHub setup, and documentation coordination
+- Marie Trejo Sandoval: ethics and security analysis, evaluation support, limitations, and report review

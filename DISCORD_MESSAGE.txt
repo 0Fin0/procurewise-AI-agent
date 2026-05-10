@@ -1,5 +1,10 @@
 Hey team, I zipped the ProcureWise project so everyone can download and test it.
 
+Team:
+Jesus Arteaga
+Omar Ferrufino
+Marie Trejo Sandoval
+
 What this is:
 ProcureWise is our ISYS 573 Track A AI Agent project. It helps review purchase requests for procurement and vendor risk. A user enters a request, and the agent checks policy, vendor data, approval rules, and risk level.
 
