@@ -1,0 +1,54 @@
+ProcureWise AI Agent - Final Submission Information
+
+GitHub Repository:
+https://github.com/0Fin0/procurewise-AI-agent
+
+Project Summary:
+ProcureWise is a Track A AI Agent project for ISYS 573. It helps review procurement and vendor-risk requests by combining an LLM, Retrieval Augmented Generation over policy documents, tool-based vendor lookup, approval routing, risk scoring, safety checks, case writing, approval packet generation, evaluation, and human review logging.
+
+Final Submission Package:
+
+1. Complete Project Report
+File:
+docs/ProcureWise_Final_Report.docx
+
+2. Functional Agent With Deployment Instructions
+Main files:
+README.md
+docs/deployment.md
+app/basic_server.py
+src/procurewise/
+
+3. GitHub Repository With Code and Documentation
+Repository:
+https://github.com/0Fin0/procurewise-AI-agent
+
+4. Containerized Deployment Package
+Main files:
+Dockerfile
+docker-compose.yml
+requirements.txt
+.dockerignore
+
+Docker run command:
+docker compose up --build
+
+Then open:
+http://localhost:8501
+
+5. Video Demonstration
+The video should show the app running at:
+http://localhost:8501
+
+Recommended demo highlights:
+- LLM drafting on
+- LLM + RAG + tools mode
+- CloudDesk AI or Office Supply request
+- Policy Bypass safety scenario
+- Approval Packet
+- Tool Trace with response_drafter mode: llm
+- Evaluation page showing 6/6 passed
+- Cases page showing audit history
+
+Important Note:
+The .env file and API key are not included in the public repository. The app can run without an API key in deterministic mode, and it can use live LLM drafting when PROCUREWISE_USE_LLM=true and an OpenAI API key is provided locally.
