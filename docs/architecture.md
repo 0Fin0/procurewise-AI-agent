@@ -2,15 +2,17 @@
 
 ## Architecture Summary
 
-ProcureWise is a Track A single-agent system. The agent uses a structured workflow that combines RAG, tool calls, deterministic risk rules, and a user-facing recommendation.
+ProcureWise is a Track A single-agent system. The agent uses a structured workflow that combines RAG, tool calls, deterministic risk rules, optional LLM-backed response drafting, and a user-facing recommendation.
 
 ```mermaid
 flowchart LR
-    User["Business requester"] --> UI["Streamlit UI or CLI"]
+    User["Business requester"] --> UI["Polished dashboard or CLI"]
     UI --> Agent["ProcureWise Agent"]
     Agent --> Parser["Request parser"]
     Agent --> RAG["Policy retriever"]
     Agent --> VendorTool["Vendor lookup tool"]
+    Agent --> IntakeTool["Intake completeness tool"]
+    Agent --> SafetyTool["Safety guard tool"]
     Agent --> ApprovalTool["Approval router"]
     Agent --> RiskTool["Risk scorer"]
     RAG --> KB["Policy knowledge base"]
@@ -34,7 +36,7 @@ stateDiagram-v2
     CreateCase --> [*]
 ```
 
-The implementation supports LangGraph when installed. The same nodes also run through a deterministic local workflow so the project can be demonstrated without paid API access.
+The implementation supports LangGraph when installed. The same nodes also run through a deterministic local workflow so the project can be demonstrated without paid API access. If an API key is provided, the final drafting step can call an LLM while keeping risk scoring, approvals, retrieval, and case creation controlled by local tools.
 
 ## Components
 
@@ -71,10 +73,15 @@ The RAG layer indexes local policy documents by heading. It uses tokenization, t
 The tools act like internal business APIs:
 
 - `request_parser`: extracts structured facts from unstructured text.
+- `intake_checker`: checks whether required procurement fields are present before approval.
+- `safety_guard`: detects policy-bypass or concealment instructions and keeps normal review in place.
 - `vendor_lookup`: checks whether the vendor is known and what its risk posture is.
 - `approval_router`: maps spend level to required approvals.
 - `risk_scorer`: combines spend, data sensitivity, vendor status, SOC 2 status, and contract status.
 - `case_writer`: writes an audit-ready JSON case record.
+- `human_review_recorder`: records human reviewer actions without letting the agent approve purchases.
+
+The dashboard also includes a case history view that reads those JSON case records back into the user interface. This makes the case-writing action visible as a persistent audit artifact rather than a temporary response.
 
 ## Human Oversight
 
@@ -90,4 +97,3 @@ For a production implementation, the following upgrades would be made:
 - Add authentication and role-based access controls.
 - Add observability through LangSmith or an enterprise logging platform.
 - Deploy with Docker on a managed container platform or Kubernetes.
-

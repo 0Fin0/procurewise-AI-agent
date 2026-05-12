@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, TypedDict
 
+from .llm import RecommendationDrafter
 from .prompts import RESPONSE_TEMPLATE, SYSTEM_PROMPT
 from .retriever import PolicyRetriever
 from .schemas import AgentResult, Evidence, RequestFacts, ToolResult, VendorProfile
@@ -13,6 +14,10 @@ class AgentState(TypedDict, total=False):
     facts: RequestFacts
     evidence: list[Evidence]
     vendor: VendorProfile | None
+    missing_intake_fields: list[str]
+    policy_bypass_attempt: bool
+    decision_status: str
+    recommended_human_action: str
     tool_results: list[ToolResult]
     recommendation: str
     next_steps: list[str]
@@ -22,9 +27,15 @@ class AgentState(TypedDict, total=False):
 
 
 class ProcureWiseAgent:
-    def __init__(self, retriever: PolicyRetriever | None = None, tools: ProcurementTools | None = None) -> None:
+    def __init__(
+        self,
+        retriever: PolicyRetriever | None = None,
+        tools: ProcurementTools | None = None,
+        drafter: RecommendationDrafter | None = None,
+    ) -> None:
         self.retriever = retriever or PolicyRetriever()
         self.tools = tools or ProcurementTools()
+        self.drafter = drafter or RecommendationDrafter()
         self.graph = self._build_graph_if_available()
 
     def run(self, request: str, create_case: bool = True) -> AgentResult:
@@ -41,6 +52,10 @@ class ProcureWiseAgent:
                 self._find_tool(state["tool_results"], "approval_router"),
                 self._find_tool(state["tool_results"], "risk_scorer"),
                 state["recommendation"],
+                self._find_tool(state["tool_results"], "intake_checker"),
+                self._find_tool(state["tool_results"], "safety_guard"),
+                self._find_tool(state["tool_results"], "decision_advisor"),
+                state["evidence"],
             )
             state["tool_results"].append(case_result)
             state["case_id"] = case_result.details["case_id"]
@@ -54,6 +69,9 @@ class ProcureWiseAgent:
             tool_results=state["tool_results"],
             next_steps=state["next_steps"],
             case_id=state.get("case_id"),
+            missing_intake_fields=state.get("missing_intake_fields", []),
+            decision_status=state.get("decision_status", ""),
+            recommended_human_action=state.get("recommended_human_action", ""),
         )
 
     def _run_direct(self, state: AgentState) -> AgentState:
@@ -110,17 +128,27 @@ class ProcureWiseAgent:
 
     def _run_tools(self, state: AgentState) -> AgentState:
         vendor, vendor_result = self.tools.lookup_vendor(state["facts"])
+        safety = self.tools.check_request_safety(state["facts"])
         approval = self.tools.determine_approval_path(state["facts"])
-        risk = self.tools.assess_risk(state["facts"], vendor)
+        intake = self.tools.check_intake_completeness(state["facts"])
+        risk = self.tools.assess_risk(state["facts"], vendor, safety)
+        decision = self.tools.advise_decision(vendor, approval, intake, safety, risk)
         state["vendor"] = vendor
-        state["tool_results"].extend([vendor_result, approval, risk])
+        state["tool_results"].extend([vendor_result, safety, approval, intake, risk, decision])
+        state["missing_intake_fields"] = intake.details["missing_required"]
+        state["policy_bypass_attempt"] = safety.details["policy_bypass_attempt"]
         state["risk_level"] = risk.details["risk_level"]
         state["approval_path"] = approval.details["approval_path"]
+        state["decision_status"] = decision.details["decision_status"]
+        state["recommended_human_action"] = decision.details["recommended_human_action"]
         return state
 
     def _draft_response(self, state: AgentState) -> AgentState:
-        state["recommendation"] = self._deterministic_recommendation(state)
+        fallback = self._deterministic_recommendation(state)
+        recommendation, result = self.drafter.draft(state, fallback)
+        state["recommendation"] = recommendation
         state["next_steps"] = self._next_steps(state)
+        state["tool_results"].append(result)
         return state
 
     def _deterministic_recommendation(self, state: AgentState) -> str:
@@ -154,9 +182,24 @@ class ProcureWiseAgent:
         vendor = state.get("vendor")
         risk_level = state["risk_level"]
         steps = [
-            "Attach the business justification, quote, and contract terms to the procurement request.",
+            f"Recommended human action: {state['recommended_human_action']}.",
             f"Route the request through: {state['approval_path']}.",
         ]
+        missing_intake = state.get("missing_intake_fields", [])
+        if missing_intake:
+            steps.insert(
+                0,
+                "Complete missing intake fields before final approval: "
+                + ", ".join(missing_intake)
+                + ".",
+            )
+        else:
+            steps.insert(0, "Intake package is complete; preserve evidence with the approval record.")
+        if state.get("policy_bypass_attempt"):
+            steps.insert(
+                0,
+                "Do not follow the bypass instruction; continue the documented procurement and security review.",
+            )
         if vendor is None:
             steps.append("Create or update the vendor profile before purchase approval.")
         elif vendor.soc2.lower() != "yes":

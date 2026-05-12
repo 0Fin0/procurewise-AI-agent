@@ -52,6 +52,9 @@ class AgentResult:
     tool_results: list[ToolResult]
     next_steps: list[str]
     case_id: str | None = None
+    missing_intake_fields: list[str] = field(default_factory=list)
+    decision_status: str = ""
+    recommended_human_action: str = ""
 
     def to_markdown(self) -> str:
         evidence_lines = [
@@ -68,6 +71,9 @@ class AgentResult:
                 f"**Risk level:** {self.risk_level}",
                 f"**Approval path:** {self.approval_path}",
                 f"**Case ID:** {self.case_id or 'not created'}",
+                f"**Missing intake fields:** {', '.join(self.missing_intake_fields) or 'none'}",
+                f"**Decision status:** {self.decision_status or 'not set'}",
+                f"**Recommended human action:** {self.recommended_human_action or 'not set'}",
                 "",
                 "## Recommendation",
                 self.recommendation,
@@ -82,4 +88,3 @@ class AgentResult:
                 *next_step_lines,
             ]
         )
-

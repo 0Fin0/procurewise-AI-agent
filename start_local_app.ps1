@@ -3,8 +3,11 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ProjectRoot
 
+$VenvPython = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
 $BundledPython = Join-Path $env:USERPROFILE ".cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
-if (Test-Path $BundledPython) {
+if (Test-Path $VenvPython) {
+    $Python = $VenvPython
+} elseif (Test-Path $BundledPython) {
     $Python = $BundledPython
 } else {
     $Python = "python"
@@ -17,4 +20,3 @@ Write-Host "Keep this PowerShell window open while using the app."
 Write-Host ""
 
 & $Python "app\basic_server.py"
-

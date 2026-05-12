@@ -33,12 +33,6 @@ This is a single agent with a structured workflow:
 
 ## Quick Start
 
-If you received this project as a ZIP from Discord, unzip it first and read:
-
-```text
-TEAM_SETUP_FROM_ZIP.md
-```
-
 The fastest local demo does not need extra packages:
 
 Windows:
@@ -118,7 +112,24 @@ docker compose up --build
 
 Then open `http://localhost:8501`.
 
-The core demo works without an API key. Docker also runs without a `.env` file. To use an LLM-backed implementation later, copy `.env.example` to `.env`, add your API key, and install the optional packages listed in `requirements.txt`.
+The core demo works without an API key. Docker also runs without a `.env` file. An optional LLM-backed response drafter is implemented for teams that want to show a live API-based agent path. To turn it on, copy `.env.example` to `.env`, add your API key, and set:
+
+```text
+PROCUREWISE_USE_LLM=true
+OPENAI_API_KEY=your_key_here
+OPENAI_MODEL=gpt-4.1-mini
+```
+
+Even in LLM mode, the risk score, approval path, vendor lookup, policy evidence, and case creation still come from the agent tools. The LLM only drafts the final recommendation from those tool outputs, and the tool trace records whether the response came from LLM mode or deterministic fallback mode.
+
+For a live API demo, use Docker or install the dependencies in `.venv` first so the OpenAI package is available:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+.\start_local_app.ps1
+```
 
 ## Repository Structure
 
@@ -127,8 +138,8 @@ app/                         Polished browser dashboard and optional Streamlit p
 data/knowledge_base/         RAG source documents
 data/vendors.csv             Sample vendor risk database
 data/sample_requests.csv     Evaluation and demo scenarios
-docs/                        Final report, architecture, ethics, deployment, demo script
-src/procurewise/             Agent, retrieval, tools, prompts, schemas
+docs/                        Final report, architecture, ethics, deployment, and evaluation
+src/procurewise/             Agent, optional LLM drafter, retrieval, tools, prompts, schemas
 tests/                       Local unit tests
 Dockerfile                   Container build
 docker-compose.yml           Local container launch
@@ -147,11 +158,11 @@ The agent will retrieve relevant policy, check CloudDesk AI in the vendor databa
 ## Deliverables
 
 - Final report Word document: `docs/ProcureWise_Final_Report.docx`
-- Final report simplified source: `docs/final_report_grade9.md`
-- Original detailed report draft: `docs/final_report.md`
 - Architecture: `docs/architecture.md`
 - Evaluation plan and results: `docs/evaluation.md`
 - Ethics and security analysis: `docs/ethics_security.md`
 - Deployment instructions: `docs/deployment.md`
-- 5-minute video script: `docs/demo_script.md`
-- Proposal and progress report drafts: `docs/project_proposal.md`, `docs/progress_report.md`
+
+## Public Repository Notes
+
+The repository is prepared for public GitHub use. Local-only files such as `.env`, runtime case files, ZIP archives, cache folders, and the assignment PDF are ignored and should not be committed.

@@ -4,8 +4,10 @@ services:
     ports:
       - "8501:8501"
     environment:
-      PROCUREWISE_USE_LLM: "false"
-      PROCUREWISE_CASE_DIR: data/runtime
+      PROCUREWISE_USE_LLM: ${PROCUREWISE_USE_LLM:-false}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+      PROCUREWISE_CASE_DIR: ${PROCUREWISE_CASE_DIR:-data/runtime}
       HOST: 0.0.0.0
       PORT: "8501"
     volumes:

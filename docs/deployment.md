@@ -2,12 +2,6 @@
 
 ## Local Development
 
-If the project came from Discord, unzip it first. The team setup guide is:
-
-```text
-TEAM_SETUP_FROM_ZIP.md
-```
-
 The fastest demo is the polished browser dashboard. It does not require extra packages.
 
 Windows:
@@ -93,15 +87,25 @@ http://localhost:8501
 
 The default local demo does not require a `.env` file. Docker Compose sets safe default values automatically.
 
-If you want to test an API-backed LLM version later, copy `.env.example` to `.env`.
+If you want to test the API-backed LLM drafting path, copy `.env.example` to `.env`.
 
 ```text
 OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4.1-mini
 PROCUREWISE_USE_LLM=false
 PROCUREWISE_CASE_DIR=data/runtime
 ```
 
-The app runs without an API key in deterministic mode. For a production LLM-backed demo, set `OPENAI_API_KEY` and update the generation layer to call the selected model.
+The app runs without an API key in deterministic mode. For an LLM-backed demo, set `OPENAI_API_KEY`, set `PROCUREWISE_USE_LLM=true`, and choose the model with `OPENAI_MODEL`. The LLM drafts the final recommendation from retrieved evidence and tool outputs. It does not replace the vendor lookup, approval routing, risk score, or case creation tools.
+
+For a live API demo, use Docker or install the dependencies in `.venv` first so the OpenAI package is available:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+.\start_local_app.ps1
+```
 
 ## Infrastructure Design
 
